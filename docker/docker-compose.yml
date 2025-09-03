@@ -23,6 +23,14 @@ services:
     image: apache/airflow:2.9.2
     env_file: 
       - ../config/.env
+    environment:
+      NO_PROXY: 169.254.169.254,169.254.0.0/16,localhost,127.0.0.1
+      no_proxy: 169.254.169.254,169.254.0.0/16,localhost,127.0.0.1
+      AIRFLOW__CORE__LOAD_EXAMPLES: "False"
+      AIRFLOW__WEBSERVER__RBAC: "True"
+      AWS_REGION: "eu-central-1"
+      AWS_PROFILE: "default"
+      AWS_SDK_LOAD_CONFIG: "1"
     depends_on:
       - kafka
     ports:
@@ -31,12 +39,15 @@ services:
       - ../airflow/dags:/opt/airflow/dags
       - ../docker/airflow/requirements.txt:/requirements.txt
       - airflow-home:/opt/airflow           # <-- persist Airflow home (SQLite lives here)
+      - ~/.aws:/home/airflow/.aws:ro   # mount your local AWS config/creds
+      - $HOME/.aws:/home/airflow/.aws:ro
     command: >
-      bash -c "
+      bash -lc "
       python -V &&
-      pip install --no-cache-dir -r /requirements.txt &&
+      python -m pip install --no-cache-dir -r /requirements.txt &&
       airflow standalone
       "
+    build: ./airflow
 
   kafka-producer:
     build: ../kafka/producer
