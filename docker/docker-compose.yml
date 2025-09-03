@@ -1,4 +1,3 @@
-version: "3.8"
 services:
   zookeeper:
     image: confluentinc/cp-zookeeper:7.6.0
@@ -20,31 +19,24 @@ services:
       KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
 
-  airflow-db:
-    image: postgres:15
-    environment:
-      POSTGRES_USER: airflow
-      POSTGRES_PASSWORD: airflow
-      POSTGRES_DB: airflow
-    volumes:
-      - airflow-db:/var/lib/postgresql/data
-
   airflow:
     image: apache/airflow:2.9.2
-    env_file: ../config/.env
+    env_file: 
+      - ../config/.env
     depends_on:
-      - airflow-db
+      - kafka
     ports:
       - "8080:8080"
     volumes:
       - ../airflow/dags:/opt/airflow/dags
       - ../docker/airflow/requirements.txt:/requirements.txt
-    command: bash -c "
-      pip install -r /requirements.txt &&
-      airflow db init &&
-      airflow users create --username admin --password admin --firstname a --lastname b --role Admin --email admin@example.com &&
-      airflow webserver & airflow scheduler
-    "
+      - airflow-home:/opt/airflow           # <-- persist Airflow home (SQLite lives here)
+    command: >
+      bash -c "
+      python -V &&
+      pip install --no-cache-dir -r /requirements.txt &&
+      airflow standalone
+      "
 
   kafka-producer:
     build: ../kafka/producer
@@ -54,4 +46,4 @@ services:
     command: python produce_events.py
 
 volumes:
-  airflow-db:
+  airflow-home:
