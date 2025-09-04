@@ -19,13 +19,18 @@ services:
       KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
 
-  # ← This is the service airflow depends on
   airflow-db:
     image: postgres:15
     environment:
       POSTGRES_USER: airflow
       POSTGRES_PASSWORD: airflow
       POSTGRES_DB: airflow
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U airflow -d airflow"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
     volumes:
       - airflow-db:/var/lib/postgresql/data
 
@@ -34,10 +39,13 @@ services:
     build:
       context: ./airflow
     env_file: ../config/.env
+    environment:
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@airflow-db:5432/airflow
+      AIRFLOW__CORE__LOAD_EXAMPLES: "False"
     depends_on:
-      - airflow-db
-    ports:
-      - "8080:8080"
+      airflow-db:
+        condition: service_healthy
+    ports: ["8080:8080"]
     volumes:
       - ../airflow/dags:/opt/airflow/dags
       - ../airflow/plugins:/opt/airflow/plugins
