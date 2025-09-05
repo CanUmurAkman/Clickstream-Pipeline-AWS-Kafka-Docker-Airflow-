@@ -50,7 +50,7 @@ services:
       - ../airflow/dags:/opt/airflow/dags
       - ../airflow/plugins:/opt/airflow/plugins
       - ../airflow/include:/opt/airflow/include
-    command: ["/entrypoint.sh"]
+    entrypoint: ["/entrypoint.sh"]
 
   kafka-producer:
     build:
