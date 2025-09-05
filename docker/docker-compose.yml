@@ -26,31 +26,71 @@ services:
       POSTGRES_PASSWORD: airflow
       POSTGRES_DB: airflow
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB} || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-      start_period: 10s
+      test: ["CMD-SHELL", "pg_isready -U airflow -d airflow"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
     volumes:
       - airflow-db:/var/lib/postgresql/data
 
-  # Build a custom Airflow image so deps install as root at build time
-  airflow:
-    build:
-      context: ./airflow
-    env_file: ../config/.env
-    environment:
-      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@airflow-db:5432/airflow
-      AIRFLOW__CORE__LOAD_EXAMPLES: "False"
-    depends_on:
-      airflow-db:
-        condition: service_healthy
-    ports: ["8080:8080"]
-    volumes:
-      - ../airflow/dags:/opt/airflow/dags
-      - ../airflow/plugins:/opt/airflow/plugins
-      - ../airflow/include:/opt/airflow/include
-    entrypoint: ["/entrypoint.sh"]
+# ---- One-off init (migrations + admin user) ----
+airflow-init:
+  build:
+    context: ./airflow
+  env_file: ../config/.env
+  environment:
+    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@airflow-db:5432/airflow
+    AIRFLOW__CORE__LOAD_EXAMPLES: "False"
+  depends_on:
+    airflow-db:
+      condition: service_healthy
+  entrypoint: bash -c
+  command: >
+    "airflow db migrate &&
+     airflow users create
+       --username admin
+       --password admin
+       --firstname a
+       --lastname b
+       --role Admin
+       --email admin@example.com || true"
+  restart: "no"
+
+# ---- Webserver ----
+airflow-webserver:
+  build:
+    context: ./airflow
+  env_file: ../config/.env
+  environment:
+    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@airflow-db:5432/airflow
+    AIRFLOW__CORE__LOAD_EXAMPLES: "False"
+  depends_on:
+    airflow-init:
+      condition: service_completed_successfully
+  ports:
+    - "8080:8080"
+  volumes:
+    - ../airflow/dags:/opt/airflow/dags
+    - ../airflow/plugins:/opt/airflow/plugins
+    - ../airflow/include:/opt/airflow/include
+  command: airflow webserver
+
+# ---- Scheduler ----
+airflow-scheduler:
+  build:
+    context: ./airflow
+  env_file: ../config/.env
+  environment:
+    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@airflow-db:5432/airflow
+    AIRFLOW__CORE__LOAD_EXAMPLES: "False"
+  depends_on:
+    airflow-init:
+      condition: service_completed_successfully
+  volumes:
+    - ../airflow/dags:/opt/airflow/dags
+    - ../airflow/plugins:/opt/airflow/plugins
+    - ../airflow/include:/opt/airflow/include
+  command: airflow scheduler
 
   kafka-producer:
     build:
