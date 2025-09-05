@@ -26,10 +26,10 @@ services:
       POSTGRES_PASSWORD: airflow
       POSTGRES_DB: airflow
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U airflow -d airflow"]
-      interval: 5s
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB} || exit 1"]
+      interval: 10s
       timeout: 5s
-      retries: 20
+      retries: 10
       start_period: 10s
     volumes:
       - airflow-db:/var/lib/postgresql/data
@@ -50,11 +50,7 @@ services:
       - ../airflow/dags:/opt/airflow/dags
       - ../airflow/plugins:/opt/airflow/plugins
       - ../airflow/include:/opt/airflow/include
-    command: bash -c "
-      airflow db init &&
-      airflow users create --username admin --password admin --firstname a --lastname b --role Admin --email admin@example.com &&
-      airflow webserver & airflow scheduler
-      "
+    command: ["/entrypoint.sh"]
 
   kafka-producer:
     build:

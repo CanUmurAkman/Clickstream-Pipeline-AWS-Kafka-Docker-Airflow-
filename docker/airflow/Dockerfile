@@ -11,3 +11,11 @@ ARG PYTHON_VERSION=3.12
 COPY requirements.txt /requirements.txt
 RUN pip install --no-cache-dir -r /requirements.txt \
     --constraint "https://raw.githubusercontent.com/apache/airflow/constraints-${AIRFLOW_VERSION}/constraints-${PYTHON_VERSION}.txt"
+
+# Copy the entrypoint script (needs root to chmod)
+USER root
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+# Drop back to airflow user for runtime (compose uses /entrypoint.sh via command)
+USER airflow
