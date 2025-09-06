@@ -44,22 +44,24 @@ services:
     depends_on:
       airflow-db:
         condition: service_healthy
-    entrypoint: ["/bin/bash","-lc"]
-    command: |
-      set -euo pipefail
-      echo "Waiting for Postgres..."
-      until pg_isready -h airflow-db -p 5432 >/dev/null 2>&1; do sleep 1; done
-      echo "Running DB migrations..."
-      airflow db upgrade || airflow db init
-      echo "Creating admin user (idempotent)..."
-      airflow users create \
-        --username "${_AIRFLOW_WWW_USER_USERNAME:-admin}" \
-        --password "${_AIRFLOW_WWW_USER_PASSWORD:-admin}" \
-        --firstname "${_AIRFLOW_WWW_USER_FIRSTNAME:-Admin}" \
-        --lastname "${_AIRFLOW_WWW_USER_LASTNAME:-User}" \
-        --role Admin \
-        --email "${_AIRFLOW_WWW_USER_EMAIL:-admin@example.com}" || true
-      echo "Init complete."
+    entrypoint: /bin/bash
+    command:
+      - -c
+      - |
+          set -euo pipefail
+          echo "Waiting for Postgres..."
+          until pg_isready -h airflow-db -p 5432 >/dev/null 2>&1; do sleep 1; done
+          echo "Running DB migrations..."
+          airflow db upgrade || airflow db init
+          echo "Creating admin user (idempotent)..."
+          airflow users create \
+            --username "${_AIRFLOW_WWW_USER_USERNAME:-admin}" \
+            --password "${_AIRFLOW_WWW_USER_PASSWORD:-admin}" \
+            --firstname "${_AIRFLOW_WWW_USER_FIRSTNAME:-Admin}" \
+            --lastname "${_AIRFLOW_WWW_USER_LASTNAME:-User}" \
+            --role Admin \
+            --email "${_AIRFLOW_WWW_USER_EMAIL:-admin@example.com}" || true
+          echo "Init complete."
     restart: "no"
 
 
