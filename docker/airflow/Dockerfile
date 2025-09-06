@@ -16,6 +16,9 @@ RUN pip install --no-cache-dir -r /requirements.txt \
 USER root
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends postgresql-client \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Drop back to airflow user for runtime (compose uses /entrypoint.sh via command)
 USER airflow
