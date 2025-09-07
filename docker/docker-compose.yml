@@ -91,9 +91,9 @@ services:
     ports:
       - "8080:8080"
     volumes:
-      - ../airflow/dags:/opt/airflow/dags
-      - ../airflow/plugins:/opt/airflow/plugins
-      - ../airflow/include:/opt/airflow/include
+      - ../airflow/dags:/opt/airflow/dags:ro
+      - ../airflow/plugins:/opt/airflow/plugins:ro
+      - ../airflow/include:/opt/airflow/include:ro
     command: airflow webserver
 
   # ---- Scheduler ----
@@ -114,9 +114,9 @@ services:
       airflow-init:
         condition: service_completed_successfully
     volumes:
-      - ../airflow/dags:/opt/airflow/dags
-      - ../airflow/plugins:/opt/airflow/plugins
-      - ../airflow/include:/opt/airflow/include
+      - ../airflow/dags:/opt/airflow/dags:ro
+      - ../airflow/plugins:/opt/airflow/plugins:ro
+      - ../airflow/include:/opt/airflow/include:ro
     command: airflow scheduler
 
   kafka-producer:
