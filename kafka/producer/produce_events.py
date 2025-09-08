@@ -1,5 +1,17 @@
 import os, json, time, random, uuid, datetime as dt
 from confluent_kafka import Producer
+import datetime as dt
+
+# Py3.12 has dt.UTC; older versions use dt.timezone.utc
+try:
+    UTC = dt.UTC
+except AttributeError:  # Py<=3.11
+    UTC = dt.timezone.utc
+
+def now_utc_z() -> str:
+    # RFC3339/ISO-8601 with trailing Z
+    return dt.datetime.now(UTC).isoformat().replace("+00:00", "Z")
+
 
 BOOTSTRAP = os.getenv("KAFKA_BOOTSTRAP", "kafka:9092")
 TOPIC = os.getenv("KAFKA_TOPIC", "clickstream.events")
@@ -17,7 +29,7 @@ def make_event():
     )[0]
     price = round(random.uniform(5, 120), 2) if etype=="purchase" else None
     return {
-        "event_time": dt.datetime.utcnow().isoformat()+"Z",
+        "event_time": now_utc_z(),
         "user_id": random.choice(users),
         "session_id": str(uuid.uuid4()),
         "event_type": etype,
