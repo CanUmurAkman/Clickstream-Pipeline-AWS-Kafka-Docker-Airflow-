@@ -103,6 +103,14 @@ services:
       AIRFLOW__WEBSERVER__WEB_SERVER_MASTER_TIMEOUT: "300"
       AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@airflow-db:5432/airflow
       AIRFLOW__CORE__LOAD_EXAMPLES: "False"
+      # --- added for AWS/Kafka ---
+      AWS_REGION: "eu-central-1"
+      CLICKSTREAM_S3_BUCKET: "clickstream-522814689373-dev-euc1"
+      KAFKA_BOOTSTRAP: "kafka-1:9092"
+      KAFKA_TOPIC: "clickstream.events"
+      # ensure containers can reach EC2 metadata (IMDS) even if a proxy is set
+      NO_PROXY: "169.254.169.254,localhost,127.0.0.1"
+      no_proxy: "169.254.169.254,localhost,127.0.0.1"
     logging:
       driver: "local"
       options:
@@ -128,6 +136,13 @@ services:
       AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@airflow-db:5432/airflow
       AIRFLOW__CORE__LOAD_EXAMPLES: "False"
       AIRFLOW__SCHEDULER__PARSING_PROCESSES: "1"
+      # --- added for AWS/Kafka ---
+      AWS_REGION: "eu-central-1"
+      CLICKSTREAM_S3_BUCKET: "clickstream-522814689373-dev-euc1"
+      KAFKA_BOOTSTRAP: "kafka-1:9092"
+      KAFKA_TOPIC: "clickstream.events"
+      NO_PROXY: "169.254.169.254,localhost,127.0.0.1"
+      no_proxy: "169.254.169.254,localhost,127.0.0.1"
     logging:
       driver: "local"
       options:
@@ -141,6 +156,7 @@ services:
       - ../airflow/plugins:/opt/airflow/plugins:ro
       - ../airflow/include:/opt/airflow/include:ro
     command: airflow scheduler
+
 
   kafka-producer:
     build:
