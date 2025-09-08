@@ -5,6 +5,8 @@ services:
       ZOOKEEPER_CLIENT_PORT: 2181
     ports:
       - "2181:2181"
+    volumes:
+      - zookeeper_data:/var/lib/zookeeper
 
   kafka:
     image: confluentinc/cp-kafka:7.6.0
@@ -26,6 +28,19 @@ services:
       interval: 5s
       timeout: 5s
       retries: 30
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+  
+  # NEW: Kafka UI (Provectus)
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    depends_on:
+      - kafka
+    environment:
+      KAFKA_CLUSTERS_0_NAME: local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
+    ports:
+      - "8081:8080"
 
   airflow-db:
     image: postgres:15
@@ -138,3 +153,5 @@ services:
 
 volumes:
   airflow-db:
+  zookeeper_data:
+  kafka_data:
