@@ -13,9 +13,9 @@ def now_utc_z() -> str:
     return dt.datetime.now(UTC).isoformat().replace("+00:00", "Z")
 
 
-BOOTSTRAP = os.getenv("KAFKA_BOOTSTRAP", "kafka:9092")
+bootstrap = os.getenv("KAFKA_BOOTSTRAP", "kafka:9092")
 TOPIC = os.getenv("KAFKA_TOPIC", "clickstream.events")
-producer = Producer({"bootstrap.servers": BOOTSTRAP})
+producer = Producer({"bootstrap.servers": bootstrap})
 
 users = [f"u_{i}" for i in range(1, 2001)]
 products = [f"sku_{i}" for i in range(1, 301)]
