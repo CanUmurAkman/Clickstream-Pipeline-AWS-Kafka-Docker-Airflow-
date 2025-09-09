@@ -101,6 +101,8 @@ services:
       context: ./airflow
     env_file: ../config/.env
     environment:
+      AIRFLOW__CORE__STORE_SERIALIZED_DAGS: "True"
+      AIRFLOW__CORE__STORE_DAG_CODE: "True"
       AIRFLOW__WEBSERVER__WORKERS: "1"
       AIRFLOW__WEBSERVER__WEB_SERVER_MASTER_TIMEOUT: "300"
       AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@airflow-db:5432/airflow
@@ -135,6 +137,8 @@ services:
       context: ./airflow
     env_file: ../config/.env
     environment:
+      AIRFLOW__CORE__STORE_SERIALIZED_DAGS: "True"
+      AIRFLOW__CORE__STORE_DAG_CODE: "True"
       AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@airflow-db:5432/airflow
       AIRFLOW__CORE__LOAD_EXAMPLES: "False"
       AIRFLOW__SCHEDULER__PARSING_PROCESSES: "1"
