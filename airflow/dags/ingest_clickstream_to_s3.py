@@ -7,8 +7,8 @@ from confluent_kafka import Consumer
 def consume_and_upload(**context):
     duration = 30  # seconds per batch
     topic = os.getenv("KAFKA_TOPIC", "clickstream.events")
-    s3_bucket = os.getenv("S3_BUCKET")
-    region = os.getenv("AWS_REGION", "eu-central-1")
+    BUCKET = os.environ["CLICKSTREAM_S3_BUCKET"]       # fail fast if missing
+    AWS_REGION = os.environ.get("AWS_REGION", "eu-central-1")
 
     c = Consumer({
         "bootstrap.servers": os.getenv("KAFKA_BOOTSTRAP", "kafka:9092"),
@@ -28,9 +28,16 @@ def consume_and_upload(**context):
     now = datetime.utcnow()
     key = f"raw/clickstream/date={now:%Y-%m-%d}/hour={now:%H}/batch_{now:%Y%m%dT%H%M%S}.jsonl"
 
-    boto3.client("s3", region_name=region).put_object(
-        Bucket=s3_bucket, Key=key, Body=buf.getvalue().encode("utf-8")
-    )
+    s3 = boto3.client("s3", region_name=AWS_REGION)
+    print(f"Uploading to s3://{BUCKET}/{key}")
+    s3.put_object(
+        Bucket=BUCKET,
+        Key=key,
+        Body=buf.getvalue().encode("utf-8"),
+        ContentType="application/json",
+        ServerSideEncryption="AES256",  # matches your bucket config
+)
+
 
 with DAG(
     "ingest_clickstream_to_s3",
