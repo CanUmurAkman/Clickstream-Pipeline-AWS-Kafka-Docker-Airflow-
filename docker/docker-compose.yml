@@ -117,7 +117,7 @@ services:
       AIRFLOW__WEBSERVER__RATELIMIT_STORAGE_URI: "memory://"
       AIRFLOW__WEBSERVER__WEB_SERVER_THREADS: "4"
       AIRFLOW__WEBSERVER__WEB_SERVER_KEEPALIVE: "30"
-      GUNICORN_CMD_ARGS: "--threads 2 --max-requests 1000 --max-requests-jitter 50 --keep-alive 5"
+      GUNICORN_CMD_ARGS: "--worker-tmp-dir /dev/shm"
       AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@airflow-db:5432/airflow
       AIRFLOW__CORE__LOAD_EXAMPLES: "False"
       # NEW: same secret across all components
