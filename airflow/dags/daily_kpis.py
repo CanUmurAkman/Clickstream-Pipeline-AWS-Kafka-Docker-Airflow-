@@ -18,7 +18,7 @@ DEFAULT_TZ = os.environ.get("CLICKSTREAM_TZ", "UTC")  # set to "Europe/Istanbul"
 AWS_REGION = os.environ.get("AWS_REGION", "eu-central-1")
 
 # Prefer CLICKSTREAM_S3_BUCKET (used by ingest). Fall back to S3_BUCKET for backward-compat.
-S3_BUCKET = os.environ.get("CLICKSTREAM_S3_BUCKET") or os.environ.get("S3_BUCKET")
+S3_BUCKET = os.getenv("CLICKSTREAM_S3_BUCKET")
 if not S3_BUCKET:
     raise RuntimeError(
         "Missing env var CLICKSTREAM_S3_BUCKET (or S3_BUCKET). "
