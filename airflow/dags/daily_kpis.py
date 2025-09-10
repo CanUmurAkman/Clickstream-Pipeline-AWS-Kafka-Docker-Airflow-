@@ -3,10 +3,9 @@ from __future__ import annotations
 import io
 import json
 import os
-from dataclasses import dataclass
-from datetime import datetime, date, timezone
+from datetime import datetime, date, timezone, timedelta
+from typing import Any, Dict, Iterable, Optional
 from zoneinfo import ZoneInfo
-from typing import Any, Dict, Iterable, List, Optional
 
 import boto3
 import pandas as pd
@@ -14,69 +13,92 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 
 # ---- Configuration ----
-DEFAULT_TZ = os.environ.get("CLICKSTREAM_TZ", "UTC")  # set to "Europe/Istanbul" if you prefer
+DEFAULT_TZ = os.environ.get("CLICKSTREAM_TZ", "UTC") or "UTC"  # coerce empty -> "UTC"
 AWS_REGION = os.environ.get("AWS_REGION", "eu-central-1")
 
 # Prefer CLICKSTREAM_S3_BUCKET (used by ingest). Fall back to S3_BUCKET for backward-compat.
-S3_BUCKET = os.getenv("CLICKSTREAM_S3_BUCKET")
+S3_BUCKET = os.environ.get("CLICKSTREAM_S3_BUCKET") or os.environ.get("S3_BUCKET")
 if not S3_BUCKET:
     raise RuntimeError(
         "Missing env var CLICKSTREAM_S3_BUCKET (or S3_BUCKET). "
         "Set it in your docker-compose or Airflow env."
     )
 
-def _parse_date_any(s: str) -> date:
-    s = s.strip().strip('"').strip("'")
+def _parse_date_any(s: Optional[str]) -> date:
+    """Parse YYYY-MM-DD or ISO8601; returns a date. Defensive against None/empty."""
+    if not s:
+        raise ValueError("run_date was provided but empty/None.")
+    s = str(s).strip().strip('"').strip("'")
+    if not s:
+        raise ValueError("run_date became empty after trimming.")
+    # YYYY-MM-DD first
     try:
         return datetime.strptime(s, "%Y-%m-%d").date()
     except ValueError:
         pass
+    # ISO 8601
     try:
         dt = datetime.fromisoformat(s.replace("Z", "+00:00"))
         return dt.date()
     except Exception as e:
         raise ValueError(f"Could not parse run_date '{s}': {e}")
 
-def resolve_run_date(context: Optional[Dict[str, Any]] = None) -> date:
+def _resolve_run_date(context: Optional[Dict[str, Any]] = None) -> date:
+    """
+    Order:
+      1) dag_run.conf['run_date']
+      2) env RUN_DATE
+      3) Airflow logical/execution date
+      4) "today" in DEFAULT_TZ
+    """
     # 1) dag_run.conf
     if context:
         dag_run = context.get("dag_run") or context.get("dag_run_obj")
-        if dag_run and getattr(dag_run, "conf", None):
-            rd = dag_run.conf.get("run_date")
-            if rd:
-                return _parse_date_any(str(rd))
-        # 3) logical/execution date
+        conf = getattr(dag_run, "conf", None) if dag_run else None
+        if isinstance(conf, dict) and conf.get("run_date") is not None:
+            return _parse_date_any(conf.get("run_date"))
+
+    # 2) env RUN_DATE
+    env_rd = os.environ.get("RUN_DATE")
+    if env_rd is not None and str(env_rd).strip() != "":
+        return _parse_date_any(env_rd)
+
+    # 3) logical/execution date (Airflow)
+    if context:
         logical_date = context.get("logical_date") or context.get("execution_date")
         if logical_date:
             try:
                 return logical_date.date()
             except Exception:
                 pass
-    # 2) env var
-    env_rd = os.environ.get("RUN_DATE")
-    if env_rd:
-        return _parse_date_any(env_rd)
-    # 4) fallback: local "today" in DEFAULT_TZ
-    tz = ZoneInfo(DEFAULT_TZ)
+
+    # 4) fallback: "today" in DEFAULT_TZ
+    tz = ZoneInfo(DEFAULT_TZ)  # DEFAULT_TZ is never None/empty here
     return datetime.now(tz).date()
 
-def s3_client():
+def _s3():
     return boto3.client("s3", region_name=AWS_REGION)
 
-def iter_keys(bucket: str, prefix: str) -> Iterable[str]:
-    s3 = s3_client()
+def _iter_keys(bucket: str, prefix: str):
+    """Yield keys under prefix; safe on empty listings."""
+    s3 = _s3()
     paginator = s3.get_paginator("list_objects_v2")
-    for page in paginator.paginate(Bucket=bucket, Prefix=prefix):
-        for obj in page.get("Contents", []) if isinstance(page, dict) else []:
-            yield obj["Key"]
+    for page in paginator.paginate(Bucket=str(bucket), Prefix=str(prefix)):
+        contents = page.get("Contents") or []
+        for obj in contents:
+            key = obj.get("Key")
+            if key:
+                yield key
 
-def read_jsonl_objects(bucket: str, keys: Iterable[str]) -> Iterable[Dict[str, Any]]:
-    s3 = s3_client()
+def _read_jsonl_objects(bucket: str, keys):
+    s3 = _s3()
     for key in keys:
-        resp = s3.get_object(Bucket=bucket, Key=key)
-        body = resp["Body"].read().decode("utf-8", errors="ignore")
-        for line in body.splitlines():
-            line = line.strip()
+        obj = s3.get_object(Bucket=bucket, Key=key)
+        body = obj["Body"].read()
+        # body can be bytes; decode safely
+        text = body.decode("utf-8", errors="ignore") if isinstance(body, (bytes, bytearray)) else str(body)
+        for line in text.splitlines():
+            line = (line or "").strip()
             if not line:
                 continue
             try:
@@ -84,25 +106,27 @@ def read_jsonl_objects(bucket: str, keys: Iterable[str]) -> Iterable[Dict[str, A
             except json.JSONDecodeError:
                 continue
 
-def compute_daily_kpis_for(events: Iterable[Dict[str, Any]]) -> Dict[str, Any]:
-    # Minimal KPIs that work with your simulator; extend as you like.
+def _compute_daily_kpis(events_iter) -> Dict[str, Any]:
     total_events = 0
     users, sessions = set(), set()
     pageviews = purchases = 0
     revenue = 0.0
 
-    for e in events:
+    for e in events_iter:
         total_events += 1
-        uid = e.get("user_id");  sid = e.get("session_id")
-        if uid: users.add(uid)
-        if sid: sessions.add(sid)
-        et = (e.get("event_type") or "").lower()
+        uid = e.get("user_id")
+        sid = e.get("session_id")
+        if uid is not None:
+            users.add(uid)
+        if sid is not None:
+            sessions.add(sid)
+        et = str(e.get("event_type") or "").lower()
         if et in ("page_view", "pageview", "view"):
             pageviews += 1
         if et in ("purchase", "order", "checkout"):
             purchases += 1
             try:
-                revenue += float(e.get("price", 0) or 0)
+                revenue += float(e.get("price") or 0)
             except Exception:
                 pass
 
@@ -116,25 +140,26 @@ def compute_daily_kpis_for(events: Iterable[Dict[str, Any]]) -> Dict[str, Any]:
     }
 
 def compute_kpis(**kwargs):
-    # Get Airflow context if available; fall back to kwargs
+    # Try Airflow context (works in-task); fallback to kwargs for ad-hoc runs.
     try:
         from airflow.operators.python import get_current_context  # Airflow 2.x
         context = get_current_context()
     except Exception:
-        context = kwargs
+        context = kwargs or {}
 
-    run_dt = resolve_run_date(context)
+    # Resolve day defensively
+    run_dt = _resolve_run_date(context)
     day = run_dt.strftime("%Y-%m-%d")
     print(f"[daily_kpis] Resolved run date → {day} (DEFAULT_TZ={DEFAULT_TZ})")
 
     prefix = f"raw/clickstream/date={day}/"
-    keys = list(iter_keys(S3_BUCKET, prefix))
+    keys = list(_iter_keys(S3_BUCKET, prefix))
     if not keys:
         print(f"[daily_kpis] No raw files under s3://{S3_BUCKET}/{prefix}. Exiting gracefully.")
         return "NO_INPUT"
 
-    events = read_jsonl_objects(S3_BUCKET, keys)
-    kpis = compute_daily_kpis_for(events)
+    events = _read_jsonl_objects(S3_BUCKET, keys)
+    kpis = _compute_daily_kpis(events)
     kpis["dt"] = day
 
     df = pd.DataFrame([kpis])
@@ -143,7 +168,7 @@ def compute_kpis(**kwargs):
     pq.write_table(table, buf, compression="snappy")
     out_key = f"kpis/daily/dt={day}/kpis.parquet"
 
-    s3 = s3_client()
+    s3 = _s3()
     s3.put_object(Bucket=S3_BUCKET, Key=out_key, Body=buf.getvalue())
     print(f"[daily_kpis] Wrote s3://{S3_BUCKET}/{out_key} → {len(df)} row(s).")
     return out_key
@@ -152,7 +177,6 @@ def compute_kpis(**kwargs):
 try:
     from airflow import DAG
     from airflow.operators.python import PythonOperator
-    from datetime import timedelta
 
     with DAG(
         dag_id="daily_kpis",
