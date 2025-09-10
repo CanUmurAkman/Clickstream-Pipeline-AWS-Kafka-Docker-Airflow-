@@ -110,7 +110,11 @@ services:
       AIRFLOW__CORE__STORE_SERIALIZED_DAGS: "True"
       AIRFLOW__CORE__STORE_DAG_CODE: "True"
       AIRFLOW__WEBSERVER__WORKERS: "1"
-      AIRFLOW__WEBSERVER__WEB_SERVER_MASTER_TIMEOUT: "300"
+      AIRFLOW__WEBSERVER__WORKER_CLASS: "gthread"
+      AIRFLOW__WEBSERVER__WEB_SERVER_WORKER_TIMEOUT: "600"
+      AIRFLOW__WEBSERVER__WEB_SERVER_MASTER_TIMEOUT: "1200"
+      AIRFLOW__WEBSERVER__RATELIMIT_STORAGE_URI: "memory://"
+      GUNICORN_CMD_ARGS: "--threads 2 --max-requests 1000 --max-requests-jitter 50 --keep-alive 5"
       AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@airflow-db:5432/airflow
       AIRFLOW__CORE__LOAD_EXAMPLES: "False"
       # NEW: same secret across all components
