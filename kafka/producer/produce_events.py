@@ -1,11 +1,14 @@
 import os, json, time, random, uuid, datetime as dt
 from confluent_kafka import Producer
+import datetime as dt
 
 # Py3.12 has dt.UTC; older versions use dt.timezone.utc
 try:
     UTC = dt.UTC
 except AttributeError:  # Py<=3.11
     UTC = dt.timezone.utc
+
+FF_EVENTS_TARGET = int(os.getenv("FF_EVENTS_TARGET", "0"))
 
 def now_utc_z() -> str:
     # RFC3339/ISO-8601 with trailing Z
@@ -45,24 +48,85 @@ def make_event(ts: dt.datetime | None = None):
     }
 
 def sim_timestamps():
+    """
+    Yields event timestamps.
+      - Fast-forward mode (if FF_START_DATE and FF_DAYS > 0):
+          * If FF_EVENTS_TARGET > 0: emit exactly ~FF_EVENTS_TARGET timestamps
+            evenly spaced over [start, start+days).
+          * Else: emit at a simulated rate of FF_RATE events/second (no sleeps).
+      - Realtime mode (fallback): yield now() forever.
+    """
     if FF_START_DATE and FF_DAYS > 0:
-        start = dt.datetime.fromisoformat(FF_START_DATE)
+        # Parse start date (allow "YYYY-MM-DD" or full ISO)
+        try:
+            start = dt.datetime.fromisoformat(FF_START_DATE)
+        except ValueError:
+            start = dt.datetime.strptime(FF_START_DATE, "%Y-%m-%d")
+
         if start.tzinfo is None:
             start = start.replace(tzinfo=UTC)
+
         end = start + dt.timedelta(days=FF_DAYS)
-        step = dt.timedelta(seconds=1/FF_RATE)
+        duration = end - start
+
+        if FF_EVENTS_TARGET > 0:
+            # Evenly distribute a fixed number of events across the window
+            step = duration / FF_EVENTS_TARGET
+        else:
+            # Use a per-second simulated rate
+            rate = FF_RATE if FF_RATE > 0 else 1.0
+            step = dt.timedelta(seconds=1.0 / rate)
+
         t = start
         while t < end:
             yield t
             t += step
-    else:
-        while True:
-            yield dt.datetime.now(UTC)
+        return  # fast-forward ends cleanly
 
-for ts in sim_timestamps():
-    evt = make_event(ts)
-    producer.produce(TOPIC, json.dumps(evt).encode("utf-8"))
-    producer.poll(0)
-    if not (FF_START_DATE and FF_DAYS > 0):
-        time.sleep(0.05)
+    # Realtime fallback (infinite stream)
+    while True:
+        yield dt.datetime.now(UTC)
+
+def produce_all(producer):
+    """
+    Produce events to TOPIC using sim_timestamps() and make_event().
+      - Fast-forward mode (FF_START_DATE set and FF_DAYS > 0):
+          Generates a finite stream, does NOT sleep, and flushes at the end.
+      - Realtime mode (fallback):
+          Infinite loop with a tiny sleep to avoid busy-waiting.
+    """
+    fast_forward = bool(FF_START_DATE and FF_DAYS > 0)
+
+    try:
+        for ts in sim_timestamps():
+            evt = make_event(ts)
+            payload = json.dumps(evt).encode("utf-8")
+
+            # Be resilient to temporary queue pressure
+            try:
+                producer.produce(TOPIC, payload)
+            except BufferError:
+                # Let the internal queue drain a bit, then retry once
+                producer.poll(0.1)
+                producer.produce(TOPIC, payload)
+
+            # Drive delivery callbacks and keep the queue flowing
+            producer.poll(0)
+
+            # Only throttle in realtime mode (fast-forward should blast through)
+            if not fast_forward:
+                time.sleep(0.05)
+
+        # If we ever exit the loop (finite fast-forward), ensure everything is delivered
+        if fast_forward:
+            producer.flush()
+
+    except KeyboardInterrupt:
+        # Graceful stop on Ctrl+C
+        pass
+    finally:
+        # In case of any early exit, make a final attempt to deliver queued messages
+        if fast_forward:
+            producer.flush()
+
 
