@@ -1,6 +1,6 @@
 from airflow import DAG
 from airflow.operators.python import PythonOperator
-from datetime import datetime
+from datetime import datetime, timezone
 import os, io, json, time, boto3
 from confluent_kafka import Consumer
 
@@ -18,15 +18,24 @@ def consume_and_upload(**context):
     c.subscribe([topic])
 
     buf = io.StringIO()
+    first_evt_ts = None
     start = time.time()
     while time.time() - start < duration:
         msg = c.poll(1.0)
         if msg and not msg.error():
-            buf.write(msg.value().decode("utf-8") + "\n")
+            line = msg.value().decode("utf-8")
+            buf.write(line + "\n")
+            if first_evt_ts is None:
+                try:
+                    ets = json.loads(line).get("event_ts")
+                    if ets:
+                        first_evt_ts = datetime.fromisoformat(ets.replace("Z", "+00:00"))
+                except Exception:
+                    pass
     c.close()
 
-    now = datetime.utcnow()
-    key = f"raw/clickstream/date={now:%Y-%m-%d}/hour={now:%H}/batch_{now:%Y%m%dT%H%M%S}.jsonl"
+    ts = first_evt_ts or datetime.now(timezone.utc)
+    key = f"raw/clickstream/date={ts:%Y-%m-%d}/hour={ts:%H}/batch_{ts:%Y%m%dT%H%M%S}.jsonl"
 
     s3 = boto3.client("s3", region_name=AWS_REGION)
     print(f"Uploading to s3://{BUCKET}/{key}")

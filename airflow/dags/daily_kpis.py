@@ -183,7 +183,7 @@ try:
         default_args={"retries": 0},
         start_date=datetime(2025, 9, 1, tzinfo=timezone.utc),
         schedule_interval="@daily",
-        catchup=False,
+        catchup=True,
         max_active_runs=1,
         dagrun_timeout=timedelta(minutes=30),
         tags=["clickstream", "kpis"],
