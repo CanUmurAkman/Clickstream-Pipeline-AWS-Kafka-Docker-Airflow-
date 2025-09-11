@@ -29,6 +29,9 @@ services:
       KAFKA_INTER_BROKER_LISTENER_NAME: INTRA
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_LOG_RETENTION_HOURS: 24
+      KAFKA_LOG_SEGMENT_BYTES: 107374182  # 100 MB segments
+      KAFKA_LOG_RETENTION_BYTES: 1073741824  # 1 GB per partition
     healthcheck:
       test: ["CMD","bash","-lc","kafka-topics --bootstrap-server localhost:9092 --list >/dev/null 2>&1"]
       interval: 5s
@@ -36,6 +39,11 @@ services:
       retries: 30
     volumes:
       - kafka_data:/var/lib/kafka/data
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
   
   # NEW: Kafka UI (Provectus)
   kafka-ui:
