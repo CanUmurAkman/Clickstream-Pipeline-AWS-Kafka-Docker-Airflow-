@@ -45,7 +45,7 @@ def consume_and_upload(**context):
         Body=buf.getvalue().encode("utf-8"),
         ContentType="application/json",
         ServerSideEncryption="AES256",  # matches your bucket config
-)
+    )
 
 
 with DAG(
