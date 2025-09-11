@@ -102,22 +102,17 @@ def produce_all(producer):
             evt = make_event(ts)
             payload = json.dumps(evt).encode("utf-8")
 
-            # Be resilient to temporary queue pressure
-            try:
-                producer.produce(TOPIC, payload)
-            except BufferError:
-                # Let the internal queue drain a bit, then retry once
-                producer.poll(0.1)
-                producer.produce(TOPIC, payload)
+            # backpressure-safe produce
+            while True:
+                try:
+                    producer.produce(TOPIC, payload)
+                    break
+                except BufferError:
+                    producer.poll(0.5)   # let it drain a bit
+                    producer.flush(0.5)  # attempt delivery
 
-            # Drive delivery callbacks and keep the queue flowing
             producer.poll(0)
 
-            # Only throttle in realtime mode (fast-forward should blast through)
-            if not fast_forward:
-                time.sleep(0.05)
-
-        # If we ever exit the loop (finite fast-forward), ensure everything is delivered
         if fast_forward:
             producer.flush()
 
