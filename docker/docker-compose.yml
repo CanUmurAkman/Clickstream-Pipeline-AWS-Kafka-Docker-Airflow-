@@ -207,7 +207,7 @@ services:
       FF_START_DATE: "2025-09-01"
       FF_DAYS: "7"
       # Tune simulated events per second when not in backfill mode
-      FF_RATE: "100"
+      FF_RATE: "0.165"
     command: python produce_events.py
 
 volumes:
