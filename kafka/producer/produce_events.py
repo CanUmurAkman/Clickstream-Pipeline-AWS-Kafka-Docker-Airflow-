@@ -1,11 +1,13 @@
 import os
 import json
 import time
+import uuid
+import random
 import datetime as dt
 from confluent_kafka import Producer
 
 # Environment variables
-TOPIC = os.getenv("TOPIC", "clickstream.events")
+TOPIC = os.getenv("KAFKA_TOPIC", os.getenv("TOPIC", "clickstream.events"))
 
 FF_START_DATE = os.getenv("FF_START_DATE")           # e.g., "2025-09-01"
 FF_DAYS = int(os.getenv("FF_DAYS", "0"))
@@ -14,15 +16,32 @@ FF_RATE = float(os.getenv("FF_RATE", "20"))
 
 UTC = dt.timezone.utc
 
-conf = {"bootstrap.servers": os.getenv("KAFKA_BOOTSTRAP_SERVERS", "kafka:9092")}
+conf = {"bootstrap.servers": os.getenv("KAFKA_BOOTSTRAP", os.getenv("KAFKA_BOOTSTRAP_SERVERS", "kafka:9092"))}
 producer = Producer(conf)
 
 
+USERS = [f"u_{i}" for i in range(1, 2001)]
+PRODUCTS = [f"sku_{i}" for i in range(1, 301)]
+PAGES = ["/", "/search", "/product", "/cart", "/checkout"]
+REFERRERS = ["google", "email", "direct", "ads"]
+
 def make_event(ts: dt.datetime | None = None):
+    etype = random.choices(
+        ["page_view", "add_to_cart", "checkout", "purchase"],
+        weights=[0.75, 0.15, 0.07, 0.03],
+    )[0]
+    price = round(random.uniform(5, 120), 2) if etype == "purchase" else None
     return {
-        "user_id": os.urandom(4).hex(),
-        "event": "page_view",
         "event_ts": (ts or dt.datetime.now(UTC)).isoformat().replace("+00:00", "Z"),
+        "user_id": random.choice(USERS),
+        "session_id": str(uuid.uuid4()),
+        "event_type": etype,
+        "page": random.choice(PAGES),
+        "product_id": random.choice(PRODUCTS),
+        "price": price,
+        "currency": "USD",
+        "referrer": random.choice(REFERRERS),
+        "user_agent": "Mozilla/5.0",
     }
 
 
