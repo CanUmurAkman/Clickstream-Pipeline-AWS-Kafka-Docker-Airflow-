@@ -5,11 +5,11 @@ import os, io, json, time, boto3
 from confluent_kafka import Consumer
 
 def consume_and_upload(**context):
-    # Allow tuning via env var; default to 30s
+    # Allow tuning via env var; default to 600s for fast backfill
     try:
-        duration = int(os.getenv("INGEST_WINDOW_SECONDS", "30"))
+        duration = int(os.getenv("INGEST_WINDOW_SECONDS", "600"))
     except Exception:
-        duration = 30
+        duration = 600
     topic = os.getenv("KAFKA_TOPIC", "clickstream.events")
     BUCKET = os.environ["CLICKSTREAM_S3_BUCKET"]       # fail fast if missing
     AWS_REGION = os.environ.get("AWS_REGION", "eu-central-1")
@@ -63,7 +63,7 @@ with DAG(
     "ingest_clickstream_to_s3",
     default_args={"retries": 0},
     start_date=datetime(2025, 9, 1),
-    schedule_interval="*/10 * * * *",
+    schedule_interval="*/1 * * * *",
     catchup=False,
     max_active_runs=1,
 ) as dag:

@@ -184,7 +184,8 @@ try:
         start_date=datetime(2025, 9, 1, tzinfo=timezone.utc),
         schedule_interval="@daily",
         catchup=True,
-        max_active_runs=1,
+        max_active_runs=16,
+        concurrency=16,
         dagrun_timeout=timedelta(minutes=30),
         tags=["clickstream", "kpis"],
     ) as dag:
