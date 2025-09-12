@@ -17,7 +17,9 @@ def consume_and_upload(**context):
     c = Consumer({
         "bootstrap.servers": os.getenv("KAFKA_BOOTSTRAP", "kafka:9092"),
         "group.id": "airflow-consumer",
-        "auto.offset.reset": "earliest"
+        "auto.offset.reset": "earliest",
+        "enable.auto.commit": True,
+        "auto.commit.interval.ms": 5000
     })
     c.subscribe([topic])
 
@@ -63,5 +65,6 @@ with DAG(
     start_date=datetime(2025, 9, 1),
     schedule_interval="*/10 * * * *",
     catchup=False,
+    max_active_runs=1,
 ) as dag:
     PythonOperator(task_id="consume_and_upload", python_callable=consume_and_upload)

@@ -114,7 +114,7 @@ services:
       context: ./airflow
     env_file: ../config/.env
     environment:
-      INGEST_WINDOW_SECONDS: "10"
+      INGEST_WINDOW_SECONDS: "300"
       AIRFLOW__CORE__LAZY_LOAD_PLUGINS: "True"
       AIRFLOW__CORE__STORE_SERIALIZED_DAGS: "True"
       AIRFLOW__CORE__STORE_DAG_CODE: "True"
@@ -160,7 +160,7 @@ services:
       context: ./airflow
     env_file: ../config/.env
     environment:
-      INGEST_WINDOW_SECONDS: "10"    
+      INGEST_WINDOW_SECONDS: "60"    
       AIRFLOW__CORE__STORE_SERIALIZED_DAGS: "True"
       AIRFLOW__CORE__STORE_DAG_CODE: "True"
       AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@airflow-db:5432/airflow
@@ -207,7 +207,7 @@ services:
       FF_START_DATE: "2025-09-01"
       FF_DAYS: "7"
       # Tune simulated events per second when not in backfill mode
-      FF_RATE: "2"
+      FF_RATE: "100"
     command: python produce_events.py
 
 volumes:
