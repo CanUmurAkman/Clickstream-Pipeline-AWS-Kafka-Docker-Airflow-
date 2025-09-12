@@ -20,6 +20,22 @@ Airflow DAGs move the data to Amazon S3 and compute daily KPIs.
 
 See [docs/architecture.md](docs/architecture.md) for a component breakdown.
 
+## Quick Start
+
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/awslabs/aws-clickstream-pipeline.git
+   cd aws-clickstream-pipeline
+   ```
+
+2. Start Kafka, Airflow, and the event producer:
+   ```bash
+   ./scripts/up.sh  # or: cd docker && docker compose up -d
+   ```
+
+3. Open the Airflow UI at `http://localhost:8080` (login: admin/admin) and
+   confirm the DAGs are running.
+
 ## Usage
 
 ```bash
