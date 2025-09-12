@@ -38,6 +38,11 @@ def consume_and_upload(**context):
                         first_evt_ts = datetime.fromisoformat(ets.replace("Z", "+00:00"))
                 except Exception:
                     pass
+    # Ensure progress persists across runs
+    try:
+        c.commit(asynchronous=False)
+    except Exception:
+        pass
     c.close()
 
     payload = buf.getvalue()
@@ -46,7 +51,8 @@ def consume_and_upload(**context):
         return "EMPTY_BATCH"
 
     ts = first_evt_ts or datetime.now(timezone.utc)
-    key = f"raw/clickstream/date={ts:%Y-%m-%d}/hour={ts:%H}/batch_{ts:%Y%m%dT%H%M%S}.jsonl"
+    # Keep partitioning by first event time, but use current time for batch suffix to avoid overwrites
+    key = f"raw/clickstream/date={ts:%Y-%m-%d}/hour={ts:%H}/batch_{datetime.now(timezone.utc):%Y%m%dT%H%M%S}.jsonl"
 
     s3 = boto3.client("s3", region_name=AWS_REGION)
     print(f"Uploading to s3://{BUCKET}/{key}")
