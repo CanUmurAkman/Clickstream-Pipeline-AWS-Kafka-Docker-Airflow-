@@ -5,7 +5,11 @@ import os, io, json, time, boto3
 from confluent_kafka import Consumer
 
 def consume_and_upload(**context):
-    duration = 30  # seconds per batch
+    # Allow tuning via env var; default to 30s
+    try:
+        duration = int(os.getenv("INGEST_WINDOW_SECONDS", "30"))
+    except Exception:
+        duration = 30
     topic = os.getenv("KAFKA_TOPIC", "clickstream.events")
     BUCKET = os.environ["CLICKSTREAM_S3_BUCKET"]       # fail fast if missing
     AWS_REGION = os.environ.get("AWS_REGION", "eu-central-1")
@@ -34,6 +38,11 @@ def consume_and_upload(**context):
                     pass
     c.close()
 
+    payload = buf.getvalue()
+    if not payload.strip():
+        print("No messages consumed in window; skipping S3 upload.")
+        return "EMPTY_BATCH"
+
     ts = first_evt_ts or datetime.now(timezone.utc)
     key = f"raw/clickstream/date={ts:%Y-%m-%d}/hour={ts:%H}/batch_{ts:%Y%m%dT%H%M%S}.jsonl"
 
@@ -42,9 +51,9 @@ def consume_and_upload(**context):
     s3.put_object(
         Bucket=BUCKET,
         Key=key,
-        Body=buf.getvalue().encode("utf-8"),
+        Body=payload.encode("utf-8"),
         ContentType="application/json",
-        ServerSideEncryption="AES256",  # matches your bucket config
+        ServerSideEncryption="AES256",
     )
 
 
