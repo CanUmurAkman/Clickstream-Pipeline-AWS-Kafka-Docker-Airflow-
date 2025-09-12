@@ -4,10 +4,10 @@
    Kafka topic `clickstream.events`.
 2. The `ingest_clickstream_to_s3` Airflow DAG consumes events, buckets them by
    day/hour, and uploads JSONL batches to
-   `s3://clickstream-522814689373-dev-euc1/raw/clickstream/date=YYYY-MM-DD/hour=HH/`.
+   `eu-central-1.console.aws.amazon.com/s3/buckets/clickstream-522814689373-dev-euc1`.
 3. The `daily_kpis` DAG reads those raw files, computes metrics such as total
    events, unique users, and revenue, and writes the results as Parquet files to
-   `s3://clickstream-522814689373-dev-euc1/kpis/daily/dt=YYYY-MM-DD/`.
+   `eu-central-1.console.aws.amazon.com/s3/buckets/clickstream-522814689373-dev-euc1`.
 4. `ingest_healthcheck` periodically verifies that new raw files have arrived in
    the last few minutes.
 
